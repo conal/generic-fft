@@ -1,0 +1,26 @@
+Name:                generic-fft
+Version:             0.0.0
+Cabal-Version:       >= 1.6
+Synopsis:            FFTs for functor combinators
+Category:            Math
+Description:
+  FFTs for functor combinators
+Author:              Conal Elliott
+Maintainer:          conal@conal.net
+Copyright:           (c) 2013 by Tabula, Inc
+License:             BSD3
+License-File:        COPYING
+Stability:           experimental
+build-type:          Simple
+
+source-repository head
+  type:     git
+  location: git://github.com/conal/generic-fft.git
+
+Library
+  hs-Source-Dirs:      src
+  Extensions:
+  Build-Depends:       base<5
+  Exposed-Modules:     
+                       Generic.FFT
+  ghc-options:         -Wall

@@ -1,1 +1,1 @@
-Tree-based FFT
+FFTs for functor combinators
