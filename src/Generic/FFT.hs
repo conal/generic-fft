@@ -25,107 +25,61 @@ module Generic.FFT where
 
 import Prelude hiding (sum)
 
+import Data.Monoid (Monoid(..),Product(..),Sum(..))
 import Data.Functor ((<$>))
-import Data.Foldable (sum)
+import Data.Foldable (Foldable,sum)
 import Data.Traversable (Traversable(..), mapAccumL)
-import Control.Applicative (Applicative(..))
-import Data.Monoid (Monoid(..),Product(..))
+import Control.Applicative (Applicative(..),liftA2)
+import Control.Arrow ((***))
 
 import Data.Complex (Complex(..))
 
-import TypeUnary.Nat
-
 import Data.UniformPair
 
-import qualified Data.FTree.BottomUp as I
-import qualified Data.FTree.TopDown  as O
+import TypeUnary.Nat
 
--- | Input trees -- bottom-up
-type I = I.T Pair
+import Data.FTree.BottomUp
+-- import Data.FTree.TopDown
 
--- | Output trees -- bottom-up
-type O = O.T Pair
+{--------------------------------------------------------------------
+    Unoptimized discrete Fourier transform (DFT)
+--------------------------------------------------------------------}
 
--- | FFT computation, from one functor to another
-class HasFFT f g | f -> g where
-  fft :: RealFloat t => f (Complex t) -> g (Complex t)
+-- $X_k = \sum_{n=0}^{N-1} x_n e^{-i 2\pi k \frac{n}{N}}$ for $k = 0,\ldots,N$.
 
-instance HasFFT Pair Pair where
+-- dift :: forall f t. (Traversable f, RealFloat t) => Unop (f (Complex t))
+-- dift = ...
+--  where
+--    twiddles = 
+--    (indices,tot) = counts
+
+{--------------------------------------------------------------------
+    FFT
+--------------------------------------------------------------------}
+
+-- | FFT computation, parametrized by structure
+class HasFFT f where
+  fft :: RealFloat t => Unop (f (Complex t))
+
+instance HasFFT Pair where
   fft (a :# b) = a+b :# a-b
 
-instance IsNat n => HasFFT (I n) (O n) where
-  fft = fft' nat
+instance (Traversable f, Applicative f, HasFFT f, IsNat n)
+      => HasFFT (T f n) where
+  fft = inT id fftC
 
-{-
--- fft' :: RealFloat t => Nat n -> I n (Complex t) -> O n (Complex t)
-fft' :: (Traversable f, Applicative f, HasFFT f f, RealFloat t) =>
-        Nat n -> (f :+^ n) (Complex t) -> (f :^+ n) (Complex t)
-fft' Zero     = O.L . I.unL
-fft' (Succ m) =
-  O.B . (inTranspose.fmap) fft . tweakParts . fmap (fft' m) . transpose . I.unB
+fftC :: ( Traversable f, Traversable g, Applicative f, Applicative g
+        , HasFFT f, HasFFT g, RealFloat t ) =>
+        Unop (g (f (Complex t)))
+fftC = fmap fft . transpose . twiddle . fmap fft . transpose
 
--- tweakParts :: Unop (Pair (O n (Complex t)))
--- tweakParts = secondP undefined -- for now
-tweakParts :: Unop (f ((f :^+ n) (Complex t)))
-tweakParts = undefined -- for now
-
--}
-
--- type (:+^) = I.T    -- bottom-up
--- type (:^+) = O.T    -- top-down
-
--- fft' :: (Traversable f, Traversable g, Applicative f, Applicative g, HasFFT f g, RealFloat t) =>
---         Nat n -> (f :+^ n) (Complex t) -> (g :^+ n) (Complex t)
-
-fft' :: (Traversable f, Traversable g, Applicative f, Applicative g, HasFFT f g, RealFloat t) =>
-        Nat n -> I.T f n (Complex t) -> O.T g n (Complex t)
-
-fft' Zero     = O.L . I.unL
-fft' (Succ m) =
-  O.B . (inTranspose.fmap) fft . {- tweakParts . -} fmap (fft' m) . transpose . I.unB
-
-
-fftC :: ( Traversable f, Applicative f, Applicative g, Traversable h, Traversable k, Applicative k
-        , HasFFT k g, HasFFT h f
-        , RealFloat t ) =>
-        h (k (Complex t)) -> g (f (Complex t))
-fftC = transpose . fmap fft . transpose . id . fmap fft . transpose
-
--- fftC = (inTranspose.fmap) fft . id . fmap fft . transpose
-
-
--- fftC :: -- (Traversable f, Traversable g, Applicative f, Applicative g, HasFFT f g, RealFloat t) =>
---         g (f (Complex t)) -> (g :^+ n) (Complex t)
--- fftC = O.L . I.unL
--- fftC =
---   O.B . (inTranspose.fmap) fft . {- tweakParts . -} fmap (fft' m) . transpose . I.unB
-
--- I could also drop the initial and/or final transposition, e.g.,
-
--- fftC' :: ( Traversable f, Applicative f, Applicative g, Traversable h, Traversable k, Applicative k
---         , HasFFT k g, HasFFT h f
---         , RealFloat t ) =>
---         k (h (Complex t)) -> f (g (Complex t))
-
-fftC' :: (Applicative f', Traversable g, HasFFT g g', HasFFT f f', RealFloat t) =>
-         g (f (Complex t)) -> f' (g' (Complex t))
-fftC' = fmap fft . transpose . twiddle . fmap fft
-
--- fmap fft  :: g  (f  c) -> g  (f' c)
--- twiddle   :: g  (f' c) -> g  (f' c)
--- transpose :: g  (f' c) -> f' (g  c)
--- fmap fft  :: f' (g  c) -> f' (g' c)
-
-fftC'' :: ( Traversable f, Traversable g, Applicative f, Applicative g'
-          , HasFFT f f', HasFFT g g', RealFloat t ) =>
-          g (f (Complex t)) -> g' (f' (Complex t))
-fftC'' = fmap fft . transpose . twiddle . fmap fft . transpose
-
--- transpose :: g  (f  c) -> f  (g  c)
--- fmap fft  :: f  (g  c) -> f  (g' c)
--- twiddle   :: f  (g' c) -> f  (g' c)
--- transpose :: f  (g' c) -> g' (f  c)
--- fmap fft  :: g' (f  c) -> g' (f' c)
+-- Types:
+-- 
+--   transpose :: g  (f  c) -> f  (g  c)
+--   fmap fft  :: f  (g  c) -> f  (g' c)
+--   twiddle   :: f  (g' c) -> f  (g' c)
+--   transpose :: f  (g' c) -> g' (f  c)
+--   fmap fft  :: g' (f  c) -> g' (f' c)
 
 twiddle :: Unop (g (f (Complex t)))
 twiddle = id
@@ -140,9 +94,6 @@ spread = getProduct <$> fst (scanL (Product 1, pure (Product delta)))
 
 i2pi :: RealFloat t => Complex t
 i2pi = 0 :+ 2*pi
-
-scanL :: (Traversable f, Monoid a) => (a, f a) -> (f a, a)
-scanL = undefined -- for now
 
 -- TODO: Package up parallel scan and use here.
 
@@ -170,3 +121,30 @@ infixr 1 -->
 {--------------------------------------------------------------------
     Experiments
 --------------------------------------------------------------------}
+
+scanL :: (Traversable f, Monoid a) => (a, f a) -> (f a, a)
+scanL = undefined -- for now
+
+-- Prefix (left) sums
+sumsL :: (Traversable f, Num a) => (a, f a) -> (f a, a)
+sumsL = (fmap getSum *** getSum) . scanL . (Sum *** fmap Sum)
+
+counts :: forall f a. (Traversable f, Applicative f, Num a) => (f a, a)
+counts = sumsL (0, pure 1 :: f a)
+
+cross :: (Functor g, Functor f) => g a -> f b -> g (f (a , b))
+cross as bs = fmap (\ a -> fmap (\ b -> (a,b)) bs) as
+
+dot :: (Applicative f, Foldable f, Num a) => f a -> f a -> a
+u `dot` v = sum (liftA2 (*) u v)
+
+-- uroots :: f (Complex t)
+-- uroots = fmap (\ k -> exp (-
+--  where
+--    (indices,n) = counts
+
+ci :: RealFloat t => Complex t
+ci = 0 :+ 1
+
+uroot :: RealFloat t => Int -> Complex t
+uroot n = exp (- 2 * pi * ci / fromIntegral n)
