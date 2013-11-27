@@ -20,7 +20,7 @@ source-repository head
 Library
   hs-Source-Dirs:      src
   Extensions:
-  Build-Depends:       base<5, type-unary >= 0.2.12, uniform-pair, ftree
+  Build-Depends:       base<5, type-unary >= 0.2.12, uniform-pair >= 0.1.3, ftree
   Exposed-Modules:     
                        Generic.FFT
   ghc-options:         -Wall
