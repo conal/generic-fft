@@ -41,7 +41,8 @@ import Data.UniformPair
 import TypeUnary.Nat
 
 import Data.FTree.BottomUp
--- import Data.FTree.TopDown
+
+-- TODO: Explore top-down trees as well.
 
 {--------------------------------------------------------------------
     Misc
