@@ -20,9 +20,7 @@
 -- FFT on depth-typed perfect binary leaf trees
 ----------------------------------------------------------------------
 
-module Generic.FFT where
-
--- TODO: explicit exports
+module Generic.FFT (dft,HasFFT(..)) where
 
 import Prelude hiding (sum)
 
@@ -49,10 +47,6 @@ import Data.FTree.BottomUp
 --------------------------------------------------------------------}
 
 type Unop a = a -> a
-
--- Constraint shorthands
-type TA  f = (Traversable f, Applicative f)
-type TAH f = (TA f, HasFFT f)
 
 transpose :: (Traversable g, Applicative f) => g (f a) -> f (g a)
 transpose = sequenceA
@@ -125,6 +119,10 @@ rootCross tot is js = (fmap.fmap) (uroot tot ^) (is `products` js)
 class HasFFT f where
   fft :: Unop (f C)
 
+-- Constraint shorthands
+type TA  f = (Traversable f, Applicative f)
+type TAH f = (TA f, HasFFT f)
+
 instance HasFFT Pair where
   fft (a :# b) = a+b :# a-b
 
@@ -138,6 +136,7 @@ instance (TAH f, IsNat n) => HasFFT (T f n) where
 -- 
 -- This warning vanishes when we spell out TAH. Hm.
 
+-- FFTs after transposition
 fftsT :: (Applicative f, Traversable g, HasFFT g) => g (f C) -> f (g C)
 fftsT = fmap fft . transpose
 
