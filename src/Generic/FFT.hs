@@ -88,14 +88,12 @@ instance (TAH f, IsNat n) => HasFFT (T f n) where
 ffts' :: (Applicative f, Traversable g, HasFFT g) => g (f C) -> f (g C)
 ffts' = fmap fft . transpose
 
---   transpose :: g (f C) -> f (g  C)
---   fmap fft  :: f (g C) -> f (g' C)
+--   transpose :: g (f C) -> f (g C)
+--   fmap fft  :: f (g C) -> f (g C)
 
 fftC :: (TAH f, TAH g) => Unop (g (f C))
 fftC = ffts' . twiddle . ffts'
 
--- Types:
--- 
 --   ffts'   :: g (f C) -> f (g C)
 --   twiddle :: f (g C) -> f (g C)
 --   ffts'   :: f (g C) -> g (f C)
