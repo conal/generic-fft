@@ -11,7 +11,7 @@
 -- Maintainer  :  conal@tabula.com
 -- Stability   :  experimental
 -- 
--- FFT on depth-typed perfect binary leaf trees
+-- FFT via functor composition. Apply to depth-typed perfect binary leaf trees.
 ----------------------------------------------------------------------
 
 module Generic.FFT (dft,HasFFT(..)) where
