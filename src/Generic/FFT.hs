@@ -69,7 +69,7 @@ scanL (a0,as) = swap (mapAccumL h a0 as)
 sumsL :: (Traversable f, Num a) => (a, f a) -> (f a, a)
 sumsL = (fmap getSum *** getSum) . scanL . (Sum *** fmap Sum)
 
-counts :: forall f a. (Traversable f, Applicative f, Num a) => (f a, a)
+counts :: forall f a. (TA f, Num a) => (f a, a)
 counts = sumsL (0, pure 1)
 
 products :: (Functor g, Functor f, Num n) => g n -> f n -> g (f n)
@@ -90,12 +90,12 @@ uroot n = exp (- i2pi / fromIntegral n)
 
 -- $X_k = \sum_{n=0}^{N-1} x_n e^{-i 2\pi k \frac{n}{N}}$ for $k = 0,\ldots,N$.
 
-dft :: forall f . (Traversable f, Applicative f) => Unop (f C)
+dft :: TA f => Unop (f C)
 dft xs = (xs `dot`) <$> rootses
 
 -- $e^{\frac{-i 2\pi k n}{N}}$:
 
-rootses :: forall f. (Traversable f, Applicative f) => f (f C)
+rootses :: forall f. TA f => f (f C)
 rootses = rootCross tot indices indices
  where
    indices :: f Int
