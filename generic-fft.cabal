@@ -1,5 +1,5 @@
 Name:                generic-fft
-Version:             0.0.0
+Version:             0.1.0
 Cabal-Version:       >= 1.6
 Synopsis:            FFTs for functor combinators
 Category:            Math
@@ -20,7 +20,7 @@ source-repository head
 Library
   hs-Source-Dirs:      src
   Extensions:
-  Build-Depends:       base<5
+  Build-Depends:       base<5, type-unary >= 0.2.12, uniform-pair, ftree
   Exposed-Modules:     
                        Generic.FFT
   ghc-options:         -Wall
