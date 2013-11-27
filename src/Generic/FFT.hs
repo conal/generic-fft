@@ -2,10 +2,11 @@
 {-# LANGUAGE MultiParamTypeClasses, FunctionalDependencies #-}
 {-# LANGUAGE TypeSynonymInstances, FlexibleInstances, ScopedTypeVariables #-}
 {-# LANGUAGE NoMonomorphismRestriction #-} -- TEMP
-{-# LANGUAGE ConstraintKinds #-}  -- experimental
+{-# LANGUAGE ConstraintKinds #-}           -- experimental
+{-# LANGUAGE UndecidableInstances #-}      -- see below
 {-# OPTIONS_GHC -Wall #-}
 
-{-# OPTIONS_GHC -fno-warn-unused-imports #-} -- TEMP
+-- {-# OPTIONS_GHC -fno-warn-unused-imports #-} -- TEMP
 -- {-# OPTIONS_GHC -fno-warn-unused-binds   #-} -- TEMP
 
 ----------------------------------------------------------------------
@@ -25,13 +26,14 @@ module Generic.FFT where
 
 import Prelude hiding (sum)
 
-import Data.Monoid (Monoid(..),Product(..),Sum(..))
+import Data.Monoid (Monoid(..),Sum(..),(<>))
 import Data.Functor ((<$>))
 import Data.Foldable (Foldable,sum)
 import Data.Traversable (Traversable(..), mapAccumL)
 import Control.Applicative (Applicative(..),liftA2)
 import Control.Arrow ((***))
 
+import Data.Tuple (swap)
 import Data.Complex (Complex(..))
 
 import Data.UniformPair
@@ -53,7 +55,6 @@ dft xs = (xs `dot`) <$> rootses
 -- $e^{\frac{-i 2\pi k n}{N}}$:
 
 rootses :: forall f. (Traversable f, Applicative f) => f (f C)
--- rootses = (fmap.fmap) ((uroot tot ^) . uncurry (*)) (indices `cross` indices)
 rootses = rootCross tot indices indices
  where
    indices :: f Int
@@ -76,9 +77,13 @@ class HasFFT f where
 instance HasFFT Pair where
   fft (a :# b) = a+b :# a-b
 
-instance (Traversable f, Applicative f, HasFFT f, IsNat n)
-      => HasFFT (T f n) where
+instance (TAH f, IsNat n) => HasFFT (T f n) where
   fft = inT id fftC
+
+--     Variable s `f, f' occur more often than in the instance head
+--       in the constraint: TAH f
+--     (Use -XUndecidableInstances to permit this)
+--     In the instance declaration for `HasFFT (T f n)'
 
 ffts' :: (Applicative f, Traversable g, HasFFT g) => g (f C) -> f (g C)
 ffts' = fmap fft . transpose
@@ -86,9 +91,7 @@ ffts' = fmap fft . transpose
 --   transpose :: g (f C) -> f (g  C)
 --   fmap fft  :: f (g C) -> f (g' C)
 
-fftC :: ( Traversable f, Applicative f, HasFFT f
-        , Traversable g, Applicative g, HasFFT g ) =>
-        Unop (g (f C))
+fftC :: (TAH f, TAH g) => Unop (g (f C))
 fftC = ffts' . twiddle . ffts'
 
 -- Types:
@@ -97,30 +100,15 @@ fftC = ffts' . twiddle . ffts'
 --   twiddle :: f (g C) -> f (g C)
 --   ffts'   :: f (g C) -> g (f C)
 
-twiddle :: (Traversable f, Applicative f, Traversable g, Applicative g) =>
-           Unop (g (f C))
+twiddle :: forall f g. (TA f, TA g) => Unop (g (f C))
 twiddle = (liftA2.liftA2) (*) rootses'
-
-rootses' :: forall g f. (Traversable f, Applicative f, Traversable g, Applicative g) => g (f C)
-rootses' = rootCross (gTot*fTot) gIndices fIndices
  where
-   fIndices :: f Int
-   (fIndices,fTot) = counts
-   gIndices :: g Int
-   (gIndices,gTot) = counts
-
--- TODO: Factor out ((uroot tot ^) . uncurry (*)) from rootses and twiddle.
--- Does twiddle generalize rootses?
-
-
-spread :: forall f. (Applicative f, Traversable f) => f C
-spread = getProduct <$> fst (scanL (Product 1, pure (Product delta)))
- where
-   delta = exp (i2pi / fromIntegral n)
-   n     = sum (pure 1 :: f Int)
-
--- TODO: Package up parallel scan and use here.
-
+   rootses' = rootCross (gTot*fTot) gIndices fIndices
+    where
+      fIndices :: f Int
+      (fIndices,fTot) = counts
+      gIndices :: g Int
+      (gIndices,gTot) = counts
 
 {--------------------------------------------------------------------
     Misc
@@ -129,7 +117,8 @@ spread = getProduct <$> fst (scanL (Product 1, pure (Product delta)))
 type Unop a = a -> a
 
 type TA  f = (Traversable f, Applicative f)
-type TAH f = (TA f, HasFFT f)
+-- type TAH f = (TA f, HasFFT f)
+type TAH f = (Traversable f, Applicative f, HasFFT f)
 
 transpose :: (Traversable g, Applicative f) => g (f a) -> f (g a)
 transpose = sequenceA
@@ -148,7 +137,11 @@ infixr 1 -->
 type C = Complex Double
 
 scanL :: (Traversable f, Monoid a) => (a, f a) -> (f a, a)
-scanL = undefined -- for now
+scanL (a0,as) = swap (mapAccumL h a0 as)
+ where
+   h a a' = (b,b) where b = a <> a'
+
+-- TODO: Replace scanL with an efficient parallel version.
 
 -- Prefix (left) sums
 sumsL :: (Traversable f, Num a) => (a, f a) -> (f a, a)
