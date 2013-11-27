@@ -2,8 +2,8 @@
 {-# LANGUAGE MultiParamTypeClasses, FunctionalDependencies #-}
 {-# LANGUAGE TypeSynonymInstances, FlexibleInstances, ScopedTypeVariables #-}
 {-# LANGUAGE NoMonomorphismRestriction #-} -- TEMP
-{-# LANGUAGE ConstraintKinds #-}           -- experimental
-{-# LANGUAGE UndecidableInstances #-}      -- see below
+{-# LANGUAGE ConstraintKinds #-}           -- Experimental
+{-# LANGUAGE UndecidableInstances #-}      -- See below
 {-# OPTIONS_GHC -Wall #-}
 
 -- {-# OPTIONS_GHC -fno-warn-unused-imports #-} -- TEMP
@@ -70,18 +70,29 @@ scanL (a0,as) = swap (mapAccumL h a0 as)
 sumsL :: (Traversable f, Num a) => (a, f a) -> (f a, a)
 sumsL = (fmap getSum *** getSum) . scanL . (Sum *** fmap Sum)
 
+-- Yield a structure counting from 0 to size-1, together with size
 counts :: forall f a. (TA f, Num a) => (f a, a)
 counts = sumsL (0, pure 1)
 
-products :: (Functor g, Functor f, Num n) => g n -> f n -> g (f n)
-as `products` bs = (\ a -> (a *) <$> bs) <$> as
+-- Cross product of structures
+cross :: (Functor g, Functor f) => g a -> f b -> g (f (a,b))
+as `cross` bs = fmap (\ a -> fmap (\ b -> (a,b)) bs) as
 
+-- All products of numbers from each structure.
+products :: (Functor g, Functor f, Num n) => g n -> f n -> g (f n)
+products = (fmap.fmap.fmap.fmap) (uncurry (*)) cross
+
+-- as `products` bs = (fmap.fmap) (uncurry (*)) (as `cross` bs)
+-- as `products` bs = fmap (\ a -> fmap (\ b -> a*b) bs) as
+
+-- Dot product of structures
 dot :: (Applicative f, Foldable f, Num a) => f a -> f a -> a
 u `dot` v = sum (liftA2 (*) u v)
 
 i2pi :: C
 i2pi = 0 :+ 2*pi
 
+-- Principle nth root of unity with negated angle
 uroot :: Int -> C
 uroot n = exp (- i2pi / fromIntegral n)
 
@@ -89,13 +100,13 @@ uroot n = exp (- i2pi / fromIntegral n)
     Unoptimized discrete Fourier transform (DFT)
 --------------------------------------------------------------------}
 
+-- Discrete Fourier transform:
 -- $X_k = \sum_{n=0}^{N-1} x_n e^{-i 2\pi k \frac{n}{N}}$ for $k = 0,\ldots,N$.
-
 dft :: TA f => Unop (f C)
 dft xs = (xs `dot`) <$> rootses
 
+-- Powers of 'uroot' needed in the DFT:
 -- $e^{\frac{-i 2\pi k n}{N}}$ for $k,n = 0,\ldots,N$:
-
 rootses :: forall f. TA f => f (f C)
 rootses = rootCross tot indices indices
  where
@@ -127,19 +138,21 @@ instance (TAH f, IsNat n) => HasFFT (T f n) where
 -- 
 -- This warning vanishes when we spell out TAH. Hm.
 
-ffts' :: (Applicative f, Traversable g, HasFFT g) => g (f C) -> f (g C)
-ffts' = fmap fft . transpose
+fftsT :: (Applicative f, Traversable g, HasFFT g) => g (f C) -> f (g C)
+fftsT = fmap fft . transpose
 
 --   transpose :: g (f C) -> f (g C)
 --   fmap fft  :: f (g C) -> f (g C)
 
+-- FFT of composed functors
 fftC :: (TAH f, TAH g) => Unop (g (f C))
-fftC = ffts' . twiddle . ffts'
+fftC = fftsT . twiddle . fftsT
 
---   ffts'   :: g (f C) -> f (g C)
+--   fftsT   :: g (f C) -> f (g C)
 --   twiddle :: f (g C) -> f (g C)
---   ffts'   :: f (g C) -> g (f C)
+--   fftsT   :: f (g C) -> g (f C)
 
+-- Multiply by twiddle factors
 twiddle :: forall f g. (TA f, TA g) => Unop (g (f C))
 twiddle = (liftA2.liftA2) (*) rootses'
  where
