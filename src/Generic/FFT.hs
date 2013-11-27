@@ -44,6 +44,47 @@ import Data.FTree.BottomUp
 -- import Data.FTree.TopDown
 
 {--------------------------------------------------------------------
+    Misc
+--------------------------------------------------------------------}
+
+type Unop a = a -> a
+
+-- Constraint shorthands
+type TA  f = (Traversable f, Applicative f)
+type TAH f = (TA f, HasFFT f)
+
+transpose :: (Traversable g, Applicative f) => g (f a) -> f (g a)
+transpose = sequenceA
+
+type C = Complex Double
+
+scanL :: (Traversable f, Monoid a) => (a, f a) -> (f a, a)
+scanL (a0,as) = swap (mapAccumL h a0 as)
+ where
+   h a a' = (b,b) where b = a <> a'
+
+-- TODO: Replace scanL with my efficient parallel version.
+
+-- Prefix (left) sums
+sumsL :: (Traversable f, Num a) => (a, f a) -> (f a, a)
+sumsL = (fmap getSum *** getSum) . scanL . (Sum *** fmap Sum)
+
+counts :: forall f a. (Traversable f, Applicative f, Num a) => (f a, a)
+counts = sumsL (0, pure 1)
+
+products :: (Functor g, Functor f, Num n) => g n -> f n -> g (f n)
+as `products` bs = (\ a -> (a *) <$> bs) <$> as
+
+dot :: (Applicative f, Foldable f, Num a) => f a -> f a -> a
+u `dot` v = sum (liftA2 (*) u v)
+
+i2pi :: C
+i2pi = 0 :+ 2*pi
+
+uroot :: Int -> C
+uroot n = exp (- i2pi / fromIntegral n)
+
+{--------------------------------------------------------------------
     Unoptimized discrete Fourier transform (DFT)
 --------------------------------------------------------------------}
 
@@ -60,11 +101,9 @@ rootses = rootCross tot indices indices
    indices :: f Int
    (indices,tot) = counts
 
--- Experimental generalization for twiddle
-
 rootCross :: (Functor g, Functor f, Integral n) =>
              Int -> g n -> f n -> g (f C)
-rootCross tot is js = (fmap.fmap) ((uroot tot ^) . uncurry (*)) (is `cross` js)
+rootCross tot is js = (fmap.fmap) (uroot tot ^) (is `products` js)
 
 {--------------------------------------------------------------------
     FFT
@@ -107,56 +146,3 @@ twiddle = (liftA2.liftA2) (*) rootses'
       (fIndices,fTot) = counts
       gIndices :: g Int
       (gIndices,gTot) = counts
-
-{--------------------------------------------------------------------
-    Misc
---------------------------------------------------------------------}
-
-type Unop a = a -> a
-
-type TA  f = (Traversable f, Applicative f)
--- type TAH f = (TA f, HasFFT f)
-type TAH f = (Traversable f, Applicative f, HasFFT f)
-
-transpose :: (Traversable g, Applicative f) => g (f a) -> f (g a)
-transpose = sequenceA
-
-{-
-inTranspose :: (Traversable f, Traversable k, Applicative g, Applicative h) =>
-               (g (f a) -> k (h b)) -> (f (g a) -> h (k b))
-inTranspose = sequenceA --> sequenceA
-
-infixr 1 -->
--- | Add pre- and post processing
-(-->) :: (a' -> a) -> (b -> b') -> ((a -> b) -> (a' -> b'))
-(f --> h) g = h . g . f
--}
-
-type C = Complex Double
-
-scanL :: (Traversable f, Monoid a) => (a, f a) -> (f a, a)
-scanL (a0,as) = swap (mapAccumL h a0 as)
- where
-   h a a' = (b,b) where b = a <> a'
-
--- TODO: Replace scanL with an efficient parallel version.
-
--- Prefix (left) sums
-sumsL :: (Traversable f, Num a) => (a, f a) -> (f a, a)
-sumsL = (fmap getSum *** getSum) . scanL . (Sum *** fmap Sum)
-
-counts :: forall f a. (Traversable f, Applicative f, Num a) => (f a, a)
-counts = sumsL (0, pure 1)
-
-cross :: (Functor g, Functor f) => g a -> f b -> g (f (a , b))
-as `cross` bs = fmap (\ a -> fmap (\ b -> (a,b)) bs) as
-
-dot :: (Applicative f, Foldable f, Num a) => f a -> f a -> a
-u `dot` v = sum (liftA2 (*) u v)
-
-i2pi :: C
-i2pi = 0 :+ 2*pi
-
-uroot :: Int -> C
-uroot n = exp (- i2pi / fromIntegral n)
-
