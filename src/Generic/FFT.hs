@@ -93,7 +93,7 @@ uroot n = exp (- i2pi / fromIntegral n)
 dft :: TA f => Unop (f C)
 dft xs = (xs `dot`) <$> rootses
 
--- $e^{\frac{-i 2\pi k n}{N}}$:
+-- $e^{\frac{-i 2\pi k n}{N}}$ for $k,n = 0,\ldots,N$:
 
 rootses :: forall f. TA f => f (f C)
 rootses = rootCross tot indices indices
