@@ -47,11 +47,23 @@ import Data.FTree.BottomUp
 
 -- $X_k = \sum_{n=0}^{N-1} x_n e^{-i 2\pi k \frac{n}{N}}$ for $k = 0,\ldots,N$.
 
--- dift :: forall f t. (Traversable f, RealFloat t) => Unop (f (Complex t))
--- dift = ...
---  where
---    twiddles = 
---    (indices,tot) = counts
+dft :: forall f . (Traversable f, Applicative f) => Unop (f C)
+dft xs = (xs `dot`) <$> rootses
+
+-- $e^{\frac{-i 2\pi k n}{N}}$:
+
+rootses :: forall f. (Traversable f, Applicative f) => f (f C)
+-- rootses = (fmap.fmap) ((uroot tot ^) . uncurry (*)) (indices `cross` indices)
+rootses = rootCross tot indices indices
+ where
+   indices :: f Int
+   (indices,tot) = counts
+
+-- Experimental generalization for twiddle
+
+rootCross :: (Functor g, Functor f, Integral n) =>
+             Int -> g n -> f n -> g (f C)
+rootCross tot is js = (fmap.fmap) ((uroot tot ^) . uncurry (*)) (is `cross` js)
 
 {--------------------------------------------------------------------
     FFT
@@ -59,7 +71,7 @@ import Data.FTree.BottomUp
 
 -- | FFT computation, parametrized by structure
 class HasFFT f where
-  fft :: RealFloat t => Unop (f (Complex t))
+  fft :: Unop (f C)
 
 instance HasFFT Pair where
   fft (a :# b) = a+b :# a-b
@@ -68,32 +80,44 @@ instance (Traversable f, Applicative f, HasFFT f, IsNat n)
       => HasFFT (T f n) where
   fft = inT id fftC
 
-fftC :: ( Traversable f, Traversable g, Applicative f, Applicative g
-        , HasFFT f, HasFFT g, RealFloat t ) =>
-        Unop (g (f (Complex t)))
-fftC = fmap fft . transpose . twiddle . fmap fft . transpose
+ffts' :: (Applicative f, Traversable g, HasFFT g) => g (f C) -> f (g C)
+ffts' = fmap fft . transpose
+
+--   transpose :: g (f C) -> f (g  C)
+--   fmap fft  :: f (g C) -> f (g' C)
+
+fftC :: ( Traversable f, Applicative f, HasFFT f
+        , Traversable g, Applicative g, HasFFT g ) =>
+        Unop (g (f C))
+fftC = ffts' . twiddle . ffts'
 
 -- Types:
 -- 
---   transpose :: g  (f  c) -> f  (g  c)
---   fmap fft  :: f  (g  c) -> f  (g' c)
---   twiddle   :: f  (g' c) -> f  (g' c)
---   transpose :: f  (g' c) -> g' (f  c)
---   fmap fft  :: g' (f  c) -> g' (f' c)
+--   ffts'   :: g (f C) -> f (g C)
+--   twiddle :: f (g C) -> f (g C)
+--   ffts'   :: f (g C) -> g (f C)
 
-twiddle :: Unop (g (f (Complex t)))
-twiddle = id
+twiddle :: (Traversable f, Applicative f, Traversable g, Applicative g) =>
+           Unop (g (f C))
+twiddle = (liftA2.liftA2) (*) rootses'
 
-spread :: forall f t. (Applicative f, Traversable f, RealFloat t) => f (Complex t)
+rootses' :: forall g f. (Traversable f, Applicative f, Traversable g, Applicative g) => g (f C)
+rootses' = rootCross (gTot*fTot) gIndices fIndices
+ where
+   fIndices :: f Int
+   (fIndices,fTot) = counts
+   gIndices :: g Int
+   (gIndices,gTot) = counts
+
+-- TODO: Factor out ((uroot tot ^) . uncurry (*)) from rootses and twiddle.
+-- Does twiddle generalize rootses?
+
+
+spread :: forall f. (Applicative f, Traversable f) => f C
 spread = getProduct <$> fst (scanL (Product 1, pure (Product delta)))
  where
-   delta :: Complex t
    delta = exp (i2pi / fromIntegral n)
-   n :: Int
-   n = sum (pure 1 :: f Int)
-
-i2pi :: RealFloat t => Complex t
-i2pi = 0 :+ 2*pi
+   n     = sum (pure 1 :: f Int)
 
 -- TODO: Package up parallel scan and use here.
 
@@ -104,23 +128,24 @@ i2pi = 0 :+ 2*pi
 
 type Unop a = a -> a
 
+type TA  f = (Traversable f, Applicative f)
+type TAH f = (TA f, HasFFT f)
+
 transpose :: (Traversable g, Applicative f) => g (f a) -> f (g a)
 transpose = sequenceA
 
+{-
 inTranspose :: (Traversable f, Traversable k, Applicative g, Applicative h) =>
                (g (f a) -> k (h b)) -> (f (g a) -> h (k b))
 inTranspose = sequenceA --> sequenceA
-
 
 infixr 1 -->
 -- | Add pre- and post processing
 (-->) :: (a' -> a) -> (b -> b') -> ((a -> b) -> (a' -> b'))
 (f --> h) g = h . g . f
+-}
 
-
-{--------------------------------------------------------------------
-    Experiments
---------------------------------------------------------------------}
+type C = Complex Double
 
 scanL :: (Traversable f, Monoid a) => (a, f a) -> (f a, a)
 scanL = undefined -- for now
@@ -130,21 +155,17 @@ sumsL :: (Traversable f, Num a) => (a, f a) -> (f a, a)
 sumsL = (fmap getSum *** getSum) . scanL . (Sum *** fmap Sum)
 
 counts :: forall f a. (Traversable f, Applicative f, Num a) => (f a, a)
-counts = sumsL (0, pure 1 :: f a)
+counts = sumsL (0, pure 1)
 
 cross :: (Functor g, Functor f) => g a -> f b -> g (f (a , b))
-cross as bs = fmap (\ a -> fmap (\ b -> (a,b)) bs) as
+as `cross` bs = fmap (\ a -> fmap (\ b -> (a,b)) bs) as
 
 dot :: (Applicative f, Foldable f, Num a) => f a -> f a -> a
 u `dot` v = sum (liftA2 (*) u v)
 
--- uroots :: f (Complex t)
--- uroots = fmap (\ k -> exp (-
---  where
---    (indices,n) = counts
+i2pi :: C
+i2pi = 0 :+ 2*pi
 
-ci :: RealFloat t => Complex t
-ci = 0 :+ 1
+uroot :: Int -> C
+uroot n = exp (- i2pi / fromIntegral n)
 
-uroot :: RealFloat t => Int -> Complex t
-uroot n = exp (- 2 * pi * ci / fromIntegral n)
