@@ -124,6 +124,8 @@ instance (TAH f, IsNat n) => HasFFT (T f n) where
 --       in the constraint: TAH f
 --     (Use -XUndecidableInstances to permit this)
 --     In the instance declaration for `HasFFT (T f n)'
+-- 
+-- This warning vanishes when we spell out TAH. Hm.
 
 ffts' :: (Applicative f, Traversable g, HasFFT g) => g (f C) -> f (g C)
 ffts' = fmap fft . transpose
