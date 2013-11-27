@@ -1,7 +1,5 @@
-{-# LANGUAGE TypeOperators, GADTs #-}
+{-# LANGUAGE ScopedTypeVariables, ConstraintKinds #-}
 {-# LANGUAGE MultiParamTypeClasses, FunctionalDependencies #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE UndecidableInstances #-}      -- See below
 {-# OPTIONS_GHC -Wall #-}
 
