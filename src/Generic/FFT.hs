@@ -1,13 +1,9 @@
 {-# LANGUAGE TypeOperators, GADTs #-}
 {-# LANGUAGE MultiParamTypeClasses, FunctionalDependencies #-}
-{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, ScopedTypeVariables #-}
-{-# LANGUAGE NoMonomorphismRestriction #-} -- TEMP
-{-# LANGUAGE ConstraintKinds #-}           -- Experimental
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE UndecidableInstances #-}      -- See below
 {-# OPTIONS_GHC -Wall #-}
-
--- {-# OPTIONS_GHC -fno-warn-unused-imports #-} -- TEMP
--- {-# OPTIONS_GHC -fno-warn-unused-binds   #-} -- TEMP
 
 ----------------------------------------------------------------------
 -- |
