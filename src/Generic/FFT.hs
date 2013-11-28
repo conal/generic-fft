@@ -3,6 +3,8 @@
 {-# LANGUAGE UndecidableInstances #-}      -- See below
 {-# OPTIONS_GHC -Wall #-}
 
+{-# OPTIONS_GHC -fno-warn-unused-binds #-}
+
 ----------------------------------------------------------------------
 -- |
 -- Module      :  Generic.FFT
@@ -45,7 +47,6 @@ type Unop a = a -> a
 transpose :: (Traversable g, Applicative f) => g (f a) -> f (g a)
 transpose = sequenceA
 
-{-
 inTranspose :: (Traversable f, Traversable k, Applicative g, Applicative h) =>
                (g (f a) -> k (h b)) -> (f (g a) -> h (k b))
 inTranspose = transpose --> transpose
@@ -54,7 +55,6 @@ infixr 1 -->
 -- | Add pre- and post processing
 (-->) :: (a' -> a) -> (b -> b') -> ((a -> b) -> (a' -> b'))
 (f --> h) g = h . g . f
--}
 
 type C = Complex Double
 
@@ -151,6 +151,7 @@ fftsT = fmap fft . transpose
 -- FFT of composed functors
 fftC :: (TAH f, TAH g) => Unop (g (f C))
 fftC = fftsT . twiddle . fftsT
+
 -- fftC = fmap fft . twiddle . inTranspose (fmap fft)
 
 --   fftsT   :: g (f C) -> f (g C)
