@@ -45,6 +45,7 @@ type Unop a = a -> a
 transpose :: (Traversable g, Applicative f) => g (f a) -> f (g a)
 transpose = sequenceA
 
+{-
 inTranspose :: (Traversable f, Traversable k, Applicative g, Applicative h) =>
                (g (f a) -> k (h b)) -> (f (g a) -> h (k b))
 inTranspose = transpose --> transpose
@@ -53,6 +54,7 @@ infixr 1 -->
 -- | Add pre- and post processing
 (-->) :: (a' -> a) -> (b -> b') -> ((a -> b) -> (a' -> b'))
 (f --> h) g = h . g . f
+-}
 
 type C = Complex Double
 
@@ -139,17 +141,17 @@ instance (TAH f, IsNat n) => HasFFT (T f n) where
 -- 
 -- This warning vanishes when we spell out TAH. Hm.
 
--- -- FFTs after transposition
--- fftsT :: (Applicative f, Traversable g, HasFFT g) => g (f C) -> f (g C)
--- fftsT = fmap fft . transpose
+-- FFTs after transposition
+fftsT :: (Applicative f, Traversable g, HasFFT g) => g (f C) -> f (g C)
+fftsT = fmap fft . transpose
 
 --   transpose :: g (f C) -> f (g C)
 --   fmap fft  :: f (g C) -> f (g C)
 
 -- FFT of composed functors
 fftC :: (TAH f, TAH g) => Unop (g (f C))
--- fftC = fftsT . twiddle . fftsT
-fftC = fmap fft . twiddle . inTranspose (fmap fft)
+fftC = fftsT . twiddle . fftsT
+-- fftC = fmap fft . twiddle . inTranspose (fmap fft)
 
 --   fftsT   :: g (f C) -> f (g C)
 --   twiddle :: f (g C) -> f (g C)
