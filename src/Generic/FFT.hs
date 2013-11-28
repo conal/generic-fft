@@ -32,9 +32,8 @@ import Data.UniformPair
 
 import TypeUnary.Nat
 
-import Data.FTree.BottomUp
-
--- TODO: Explore top-down trees as well.
+import qualified Data.FTree.BottomUp as BU
+import qualified Data.FTree.TopDown  as TD
 
 {--------------------------------------------------------------------
     Misc
@@ -119,17 +118,17 @@ rootCross tot is js = (fmap.fmap) (uroot tot ^) (is `products` js)
 --------------------------------------------------------------------}
 
 -- | FFT computation, parametrized by structure
-class HasFFT f where
-  fft :: Unop (f C)
+class HasFFT f f' | f -> f' where
+  fft :: f C -> f' C
 
 -- Constraint shorthands
 type TA  f = (Traversable f, Applicative f)
 type TAH f = (TA f, HasFFT f)
 
-instance HasFFT Pair where
+instance HasFFT Pair Pair where
   fft (a :# b) = a+b :# a-b
 
-instance (TAH f, IsNat n) => HasFFT (T f n) where
+instance (TAH f, IsNat n) => HasFFT (BU.T f n) (TD.T f n) where
   fft = inT id fftC
 
 --     Variable s `f, f' occur more often than in the instance head
@@ -147,9 +146,15 @@ instance (TAH f, IsNat n) => HasFFT (T f n) where
 --   fmap fft  :: f (g C) -> f (g C)
 
 -- FFT of composed functors
-fftC :: (TAH f, TAH g) => Unop (g (f C))
+fftC :: (TAH f, TAH g) => g (f C) -> f (g C)
 -- fftC = fftsT . twiddle . fftsT
-fftC = fmap fft . twiddle . inTranspose (fmap fft)
+fftC = transpose . fmap fft . twiddle . transpose . fmap fft . transpose
+
+transpose :: g  (f  C) -> f  (g  C)
+fmap fft  :: f  (g  C) -> f  (g' C)
+transpose :: f  (g' C) -> g' (f  C)
+fmap fft  :: g' (f  C) -> g' (f' C)
+transpose :: g' (f' C) -> f' (g' C)
 
 --   fftsT   :: g (f C) -> f (g C)
 --   twiddle :: f (g C) -> f (g C)
