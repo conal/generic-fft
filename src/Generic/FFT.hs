@@ -1,9 +1,10 @@
-{-# LANGUAGE ScopedTypeVariables, ConstraintKinds #-}
+{-# LANGUAGE ScopedTypeVariables, ConstraintKinds, GADTs #-}
 {-# LANGUAGE MultiParamTypeClasses, FunctionalDependencies #-}
 {-# LANGUAGE UndecidableInstances #-}      -- See below
 {-# OPTIONS_GHC -Wall #-}
 
-{-# OPTIONS_GHC -fno-warn-unused-binds #-}
+-- {-# OPTIONS_GHC -fno-warn-unused-imports #-}
+-- {-# OPTIONS_GHC -fno-warn-unused-binds   #-}
 
 ----------------------------------------------------------------------
 -- |
@@ -34,9 +35,8 @@ import Data.UniformPair
 
 import TypeUnary.Nat
 
-import Data.FTree.BottomUp
-
--- TODO: Explore top-down trees as well.
+import qualified Data.FTree.BottomUp as B
+import qualified Data.FTree.TopDown  as T
 
 {--------------------------------------------------------------------
     Misc
@@ -47,6 +47,7 @@ type Unop a = a -> a
 transpose :: (Traversable g, Applicative f) => g (f a) -> f (g a)
 transpose = sequenceA
 
+{-
 inTranspose :: (Traversable f, Traversable k, Applicative g, Applicative h) =>
                (g (f a) -> k (h b)) -> (f (g a) -> h (k b))
 inTranspose = transpose --> transpose
@@ -55,6 +56,7 @@ infixr 1 -->
 -- | Add pre- and post processing
 (-->) :: (a' -> a) -> (b -> b') -> ((a -> b) -> (a' -> b'))
 (f --> h) g = h . g . f
+-}
 
 type C = Complex Double
 
@@ -121,18 +123,19 @@ rootCross tot is js = (fmap.fmap) (uroot tot ^) (is `products` js)
 --------------------------------------------------------------------}
 
 -- | FFT computation, parametrized by structure
-class HasFFT f where
-  fft :: Unop (f C)
+class HasFFT f f' | f -> f' where
+  fft :: f C -> f' C
 
 -- Constraint shorthands
 type TA  f = (Traversable f, Applicative f)
-type TAH f = (TA f, HasFFT f)
+type TAH f f' = (TA f, TA f', HasFFT f f')
 
-instance HasFFT Pair where
+instance HasFFT Pair Pair where
   fft (a :# b) = a+b :# a-b
 
-instance (TAH f, IsNat n) => HasFFT (T f n) where
-  fft = inT id fftC
+instance (TAH f f', IsNat n) => HasFFT (B.T f n) (T.T f' n) where
+  fft (B.L a) = T.L a
+  fft (B.B t) = T.B (fftC t)
 
 --     Variable s `f, f' occur more often than in the instance head
 --       in the constraint: TAH f
@@ -141,22 +144,21 @@ instance (TAH f, IsNat n) => HasFFT (T f n) where
 -- 
 -- This warning vanishes when we spell out TAH. Hm.
 
--- FFTs after transposition
-fftsT :: (Applicative f, Traversable g, HasFFT g) => g (f C) -> f (g C)
+fftsT :: (Applicative f, Traversable g, HasFFT g g') => g (f C) -> f (g' C)
 fftsT = fmap fft . transpose
 
---   transpose :: g (f C) -> f (g C)
---   fmap fft  :: f (g C) -> f (g C)
-
 -- FFT of composed functors
-fftC :: (TAH f, TAH g) => Unop (g (f C))
-fftC = fftsT . twiddle . fftsT
+fftC :: (TAH f f', TAH g g') => g (f C) -> f' (g' C)
+fftC = transpose . fftsT . twiddle . fftsT 
 
--- fftC = fmap fft . twiddle . inTranspose (fmap fft)
+{-
 
---   fftsT   :: g (f C) -> f (g C)
---   twiddle :: f (g C) -> f (g C)
---   fftsT   :: f (g C) -> g (f C)
+--   fftsT     :: g  (f  C) -> f  (g' C)
+--   twiddle   :: f  (g' C) -> f  (g' C)
+--   fftsT     :: f  (g' C) -> g' (f' C)
+--   transpose :: g' (f' C) -> f' (g' C)
+
+-}
 
 -- Multiply by twiddle factors
 twiddle :: forall f g. (TA f, TA g) => Unop (g (f C))
@@ -179,14 +181,11 @@ twiddle = (liftA2.liftA2) (*) rootses'
 _p1 :: Pair C
 _p1 = 1 :# 0
 
-_t1 :: T Pair N3 C
-_t1 = B (B (B (L (((1 :# 0) :# (0 :# 0)) :# ((0 :# 0) :# (0 :# 0))))))
+_t1 :: B.T Pair N3 C
+_t1 = B.B (B.B (B.B (B.L (((1 :# 0) :# (0 :# 0)) :# ((0 :# 0) :# (0 :# 0))))))
 
-_t2 :: T Pair N4 C
+_t2 :: B.T Pair N4 C
 _t2 = pure 1
 
-_t3 :: T Pair N3 C
-_t3 = B (pure (1 :# -1))
-
-
-
+_t3 :: B.T Pair N3 C
+_t3 = B.B (pure (1 :# -1))
