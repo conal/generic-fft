@@ -86,7 +86,9 @@ products = (fmap.fmap.fmap.fmap) (uncurry (*)) cross
 -- as `products` bs = (fmap.fmap) (uncurry (*)) (as `cross` bs)
 -- as `products` bs = fmap (\ a -> fmap (\ b -> a*b) bs) as
 
--- Dot product of structures
+-- Dot product of structures. Assumes a trie-like f, so that the Applicative
+-- instance combines corresponding elements. Perhaps replace Applicative with a
+-- more suitable constraint.
 dot :: (Applicative f, Foldable f, Num a) => f a -> f a -> a
 u `dot` v = sum (liftA2 (*) u v)
 
