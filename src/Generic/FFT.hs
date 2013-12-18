@@ -1,10 +1,10 @@
 {-# LANGUAGE ScopedTypeVariables, ConstraintKinds, GADTs #-}
 {-# LANGUAGE MultiParamTypeClasses, FunctionalDependencies #-}
 {-# LANGUAGE UndecidableInstances #-}      -- See below
-{-# OPTIONS_GHC -Wall #-}
 
--- {-# OPTIONS_GHC -fno-warn-unused-imports #-}
--- {-# OPTIONS_GHC -fno-warn-unused-binds   #-}
+{-# OPTIONS_GHC -Wall #-}
+{-# OPTIONS_GHC -fno-warn-unused-imports #-}
+{-# OPTIONS_GHC -fno-warn-unused-binds   #-}
 
 ----------------------------------------------------------------------
 -- |
@@ -47,7 +47,6 @@ type Unop a = a -> a
 transpose :: (Traversable g, Applicative f) => g (f a) -> f (g a)
 transpose = sequenceA
 
-{-
 inTranspose :: (Traversable f, Traversable k, Applicative g, Applicative h) =>
                (g (f a) -> k (h b)) -> (f (g a) -> h (k b))
 inTranspose = transpose --> transpose
@@ -56,7 +55,6 @@ infixr 1 -->
 -- | Add pre- and post processing
 (-->) :: (a' -> a) -> (b -> b') -> ((a -> b) -> (a' -> b'))
 (f --> h) g = h . g . f
--}
 
 type C = Complex Double
 
@@ -118,7 +116,9 @@ rootses = rootCross tot indices indices
 
 rootCross :: (Functor g, Functor f, Integral n) =>
              Int -> g n -> f n -> g (f C)
-rootCross tot is js = (fmap.fmap) (uroot tot ^) (is `products` js)
+rootCross tot = (fmap.fmap.fmap.fmap) (uroot tot ^) products
+
+-- rootCross tot is js = (fmap.fmap) (uroot tot ^) (is `products` js)
 
 {--------------------------------------------------------------------
     FFT
@@ -132,12 +132,19 @@ class HasFFT f f' | f -> f' where
 type TA  f = (Traversable f, Applicative f)
 type TAH f f' = (TA f, TA f', HasFFT f f')
 
+-- Binary butterfly.
 instance HasFFT Pair Pair where
   fft (a :# b) = a+b :# a-b
 
+-- Decimation in time
 instance (TAH f f', IsNat n) => HasFFT (B.T f n) (T.T f' n) where
   fft (B.L a) = T.L a
   fft (B.B t) = T.B (fftC t)
+
+-- Decimation in frequency
+instance (TAH f f', IsNat n) => HasFFT (T.T f n) (B.T f' n) where
+  fft (T.L a) = B.L a
+  fft (T.B t) = B.B (fftC t)
 
 --     Variable s `f, f' occur more often than in the instance head
 --       in the constraint: TAH f
@@ -172,6 +179,31 @@ twiddle = (liftA2.liftA2) (*) rootses'
       (fIndices,fTot) = counts
       gIndices :: g Int
       (gIndices,gTot) = counts
+
+{--------------------------------------------------------------------
+    Experimental variation
+--------------------------------------------------------------------}
+
+-- This version is a better fit with
+-- <https://en.wikipedia.org/wiki/Cooley%E2%80%93Tukey_FFT_algorithm#General_factorizations>
+
+-- FFT of composed functors
+fftC' :: (TAH f f', TAH g g') => g (f C) -> f' (g' C)
+fftC' = fftsT' . transpose . twiddle . fftsT'
+ where
+   fftsT' :: (TA h, TAH k k') => k (h C) -> k' (h C)
+   fftsT' = (inTranspose.fmap) fft
+
+-- Hm. This definition differs from the previous one, since `twiddle` and
+-- `transpose` got swapped. I doubt they're equivalent.
+
+-- Types in the fftC' definition (right to left):
+--
+--   fftsT'    :: g  (f  C) -> g' (f  C)
+--   twiddle   :: g' (f  C) -> g' (f  C)
+--   transpose :: g' (f  C) -> f  (g' C)
+--   fftsT'    :: f  (g' C) -> g' (g' C)
+
 
 {--------------------------------------------------------------------
     Tests
