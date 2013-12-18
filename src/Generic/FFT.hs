@@ -136,12 +136,12 @@ type TAH f f' = (TA f, TA f', HasFFT f f')
 instance HasFFT Pair Pair where
   fft (a :# b) = a+b :# a-b
 
--- Decimation in time
+-- Decimation in time (DIT)
 instance (TAH f f', IsNat n) => HasFFT (B.T f n) (T.T f' n) where
   fft (B.L a) = T.L a
   fft (B.B t) = T.B (fftC t)
 
--- Decimation in frequency
+-- Decimation in frequency (DIF)
 instance (TAH f f', IsNat n) => HasFFT (T.T f n) (B.T f' n) where
   fft (T.L a) = B.L a
   fft (T.B t) = B.B (fftC t)
