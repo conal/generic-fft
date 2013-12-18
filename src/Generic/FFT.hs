@@ -141,7 +141,7 @@ instance (TAH f f', IsNat n) => HasFFT (B.T f n) (T.T f' n) where
   fft (B.L a) = T.L a
   fft (B.B t) = T.B (fftC t)
 
--- Decimation in frequency (DIF)
+-- Decimation in frequency (DIF)? I'm unsure.
 instance (TAH f f', IsNat n) => HasFFT (T.T f n) (B.T f' n) where
   fft (T.L a) = B.L a
   fft (T.B t) = B.B (fftC t)
