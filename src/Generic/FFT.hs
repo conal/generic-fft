@@ -153,6 +153,9 @@ instance (TAH f f', IsNat n) => HasFFT (T.T f n) (B.T f' n) where
 -- 
 -- This warning vanishes when we spell out TAH. Hm.
 
+-- I'd prefer terser definitions like `fft = T.inT' T.l (T.B . fftC)`, but I
+-- haven't found a type for `inT'` that GHC likes.
+
 fftsT :: (Applicative f, Traversable g, HasFFT g g') => g (f C) -> f (g' C)
 fftsT = fmap fft . transpose
 
